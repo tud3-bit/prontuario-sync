@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Localização de Prontuários</title>
+    <!-- Tailwind CSS para design moderno e rápido -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter para legibilidade -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons para iconografia -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .glass-effect { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+        .search-shadow { box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); }
+        .result-card:hover { transform: translateY(-2px); transition: all 0.2s ease; }
+        /* Animação de carregamento */
+        .loader { border-top-color: #3b82f6; animation: spinner 0.6s linear infinite; }
+        @keyframes spinner { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800">
+
+    <!-- Header / Branding -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-10 glass-effect">
+        <div class="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="bg-blue-600 p-2 rounded-lg text-white">
+                    <i data-lucide="folder-search"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">Prontuário<span class="text-blue-600">Sync</span></h1>
+                    <p class="text-xs text-slate-500 uppercase tracking-wider font-semibold">Localizador Técnico</p>
+                </div>
+            </div>
+            <div id="statusIndicator" class="hidden flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Ligado
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-8">
+        
+        <!-- Hero Section -->
+        <div class="mb-10 text-center md:text-left">
+            <h2 class="text-3xl font-extrabold text-slate-900 mb-2">Encontre prontuários em segundos</h2>
+            <p class="text-slate-600">Introduza o nome completo do paciente para obter a localização física exata no arquivo.</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative group mb-12">
+            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <i data-lucide="search" class="w-5 h-5"></i>
+            </div>
+            <input 
+                type="text" 
+                id="searchBox" 
+                placeholder="Ex: Maria Oliveira Santos..."
+                class="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl search-shadow focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-lg transition-all"
+                onkeyup="handleKeyUp(event)"
+            >
+            <button 
+                onclick="realizarBusca()"
+                class="absolute right-2 top-2 bottom-2 bg-blue-600 text-white px-6 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/30 flex items-center gap-2"
+            >
+                <span>Pesquisar</span>
+            </button>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loader" class="hidden flex flex-col items-center justify-center py-20">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-12 w-12 mb-4"></div>
+            <p class="text-slate-500 font-medium animate-pulse">Consultando base de dados...</p>
+        </div>
+
+        <!-- Results Area -->
+        <div id="resultsContainer" class="grid gap-4 md:grid-cols-1">
+            <!-- Os resultados serão injectados aqui -->
+        </div>
+
+        <!-- Empty State / No Results -->
+        <div id="noResults" class="hidden flex flex-col items-center justify-center py-20 text-center">
+            <div class="bg-slate-100 p-6 rounded-full text-slate-400 mb-4">
+                <i data-lucide="user-minus" class="w-10 h-10"></i>
+            </div>
+            <h3 class="font-bold text-slate-800">Nenhum registo encontrado</h3>
+            <p class="text-slate-500 max-w-xs">Verifique a ortografia ou tente apenas o primeiro nome do paciente.</p>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="mt-20 border-t border-slate-200 py-8 bg-white">
+        <div class="max-w-4xl mx-auto px-4 text-center text-slate-400 text-sm">
+            <p>&copy; 2025 Sistema de Gestão de Arquivos. Versão 1.2.0-Pro</p>
+        </div>
+    </footer>
+
+    <script>
+        // Inicializar ícones Lucide
+        lucide.createIcons();
+
+        function handleKeyUp(event) {
+            if (event.key === "Enter") realizarBusca();
+        }
+
+        function realizarBusca() {
+            const query = document.getElementById('searchBox').value.trim();
+            if (query.length < 3) return showMessage("Introduza pelo menos 3 caracteres.");
+
+            // Mostrar loader e esconder estados anteriores
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('resultsContainer').innerHTML = '';
+            document.getElementById('noResults').classList.add('hidden');
+
+            // CHAMADA AO GOOGLE APPS SCRIPT
+            // Aqui usei o nome da função que está no seu manual: buscarPaciente
+            google.script.run
+                .withSuccessHandler(exibirResultados)
+                .withFailureHandler(handleError)
+                .buscarPaciente(query);
+        }
+
+        function exibirResultados(resultados) {
+            document.getElementById('loader').classList.add('hidden');
+            const container = document.getElementById('resultsContainer');
+
+            if (!resultados || resultados.length === 0) {
+                document.getElementById('noResults').classList.remove('hidden');
+                return;
+            }
+
+            resultados.forEach(item => {
+                const card = `
+                <div class="result-card bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-blue-50 text-blue-600 p-3 rounded-full">
+                            <i data-lucide="user" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg text-slate-900 leading-tight">${item.paciente}</h3>
+                            <p class="text-sm text-slate-500">Prontuário Ativo</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-8 md:gap-12 border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-12">
+                        <div class="text-center md:text-left">
+                            <span class="block text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Armário</span>
+                            <span class="text-xl font-bold text-slate-800">${item.armario}</span>
+                        </div>
+                        <div class="text-center md:text-left">
+                            <span class="block text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Gaveta</span>
+                            <span class="text-xl font-bold text-slate-800">${item.gaveta}</span>
+                        </div>
+                        <div class="text-center md:text-left">
+                            <span class="block text-[10px] uppercase tracking-widest font-bold text-slate-400 mb-1">Pasta</span>
+                            <span class="text-xl font-bold text-blue-600">${item.pasta}</span>
+                        </div>
+                    </div>
+                </div>
+                `;
+                container.innerHTML += card;
+            });
+
+            lucide.createIcons(); // Recriar ícones para os cards novos
+        }
+
+        function showMessage(msg) {
+            // Um simples console ou modal customizado para não usar alert()
+            console.log(msg);
+        }
+
+        function handleError(err) {
+            document.getElementById('loader').classList.add('hidden');
+            console.error("Erro na busca:", err);
+        }
+    </script>
+</body>
+</html>
